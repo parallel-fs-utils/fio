@@ -377,6 +377,8 @@ def compute_percentiles_from_logs():
     parser.add_argument("--output-unit", dest="output_unit", 
         default="usec", type=str,
         help="Latency percentile output unit: msec|usec|nsec (default usec)")
+    parser.add_argument("--output-csv-file", 
+        help="write .csv records to this file")
     parser.add_argument("file_list", nargs='+', 
         help='list of files, preceded by " -- " if necessary')
     args = parser.parse_args()
@@ -388,6 +390,8 @@ def compute_percentiles_from_logs():
     # print parameters
 
     print('fio version = %d' % args.fio_version)
+    if args.output_csv_file != None:
+        print('output csv file = %s' % args.output_csv_file)
     print('bucket groups = %d' % args.bucket_groups)
     print('bucket bits = %d' % args.bucket_bits)
     print('time quantum = %d sec' % args.time_quantum)
@@ -474,7 +478,9 @@ def compute_percentiles_from_logs():
 
     print('time (millisec), percentiles in increasing order with values in ' + args.output_unit)
     print(header)
-
+    csv_out = sys.stdout
+    if args.output_csv_file != None:
+        csv_out = open(args.output_csv_file, 'w')
     for (t_msec, all_threads_histo_t) in all_threads_histograms:
         samples = get_samples(all_threads_histo_t)
         record = '%8d, %8d, ' % (t_msec, samples)
@@ -486,8 +492,9 @@ def compute_percentiles_from_logs():
             pct_keys = [ k for k in pct.keys() ]
             pct_values = [ str(pct[wanted]/time_divisor) for wanted in sorted(pct_keys) ]
             record += ', '.join(pct_values)
-        print(record)
-
+        csv_out.write(record + '\n')
+    if args.output_csv_file != None:
+        csv_out.close()
 
 
 #end of MAIN PROGRAM
