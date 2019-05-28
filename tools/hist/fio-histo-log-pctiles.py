@@ -12,7 +12,7 @@
 #  50 - median
 #  100 - max latency
 
-# TO-DO: 
+# TO-DO:
 #   separate read and write stats for randrw mixed workload
 #   report average latency if needed
 #   prove that it works (partially done with unit tests)
@@ -67,7 +67,7 @@ def exception_suffix( record_num, pathname ):
 def parse_hist_file(logfn, buckets_per_interval, log_hist_msec):
     previous_ts_ms_read = -1
     previous_ts_ms_write = -1
- 
+
     with open(logfn, 'r') as f:
         records = [ l.strip() for l in f.readlines() ]
     intervals = []
@@ -109,7 +109,7 @@ def parse_hist_file(logfn, buckets_per_interval, log_hist_msec):
 
         buckets = int_tokens[3:]
         if len(buckets) != buckets_per_interval:
-            raise FioHistoLogExc('%d buckets per interval but %d expected in %s' % 
+            raise FioHistoLogExc('%d buckets per interval but %d expected in %s' %
                     (len(buckets), buckets_per_interval, exception_suffix(k+1, logfn)))
 
         # hack to filter out records with the same timestamp
@@ -173,12 +173,12 @@ def get_time_intervals(time_quantum, min_timestamp_ms, max_timestamp_ms):
     end_time = min_timestamp + (time_interval_count * time_quantum)
     return (end_time, time_interval_count)
 
-# align raw histogram log data to time quantum so 
+# align raw histogram log data to time quantum so
 # we can then combine histograms from different threads with addition
 # for randrw workload we count both reads and writes in same output bucket
 # but we separate reads and writes for purposes of calculating
 # end time for histogram record.
-# this requires us to weight a raw histogram bucket by the 
+# this requires us to weight a raw histogram bucket by the
 # fraction of time quantum that the bucket overlaps the current
 # time quantum interval
 # for example, if we have a bucket with 515 samples for time interval
@@ -206,10 +206,10 @@ def align_histo_log(raw_histogram_log, time_quantum, bucket_count, min_timestamp
 
         # find next record with same direction to get end-time
         # have to avoid going past end of array
-        # for fio randrw workload, 
+        # for fio randrw workload,
         # we have read and write records on same time interval
         # sometimes read and write records are in opposite order
-        # assertion checks that next read/write record 
+        # assertion checks that next read/write record
         # can be separated by at most 2 other records
 
         (time_msec, direction, sz, interval_buckets) = record
@@ -229,7 +229,7 @@ def align_histo_log(raw_histogram_log, time_quantum, bucket_count, min_timestamp
         else:
             time_msec_end = end_time_ms
 
-        # calculate first quantum that overlaps this histogram record 
+        # calculate first quantum that overlaps this histogram record
 
         offset_from_min_ts = time_msec - min_timestamp_ms
         qtm_start_ms = min_timestamp_ms + (offset_from_min_ts // time_qtm_ms) * time_qtm_ms
@@ -245,9 +245,9 @@ def align_histo_log(raw_histogram_log, time_quantum, bucket_count, min_timestamp
             if len(aligned_intervals) <= qtm_index:
                 break
 
-            # calculate fraction of time that this quantum 
+            # calculate fraction of time that this quantum
             # overlaps histogram record's time interval
-            
+
             overlap_start = max(qtm_start_ms, time_msec)
             overlap_end = min(qtm_end_ms, time_msec_end)
             weight = float(overlap_end - overlap_start)
@@ -281,7 +281,7 @@ def get_samples(buckets):
 
 # compute percentiles
 # inputs:
-#   buckets: histogram bucket array 
+#   buckets: histogram bucket array
 #   wanted: list of floating-pt percentiles to calculate
 #   time_ranges: [tmin,tmax) time interval for each bucket
 # returns None if no I/O reported.
@@ -315,7 +315,7 @@ def get_pctiles(buckets, wanted, time_ranges):
     # this prevents floating-point error from preventing loop exit
     almost_100 = 99.9999
 
-    # pct is the percentile corresponding to 
+    # pct is the percentile corresponding to
     # all I/O requests up through bucket b
     pct = 0.0
     total_so_far = 0
@@ -323,20 +323,20 @@ def get_pctiles(buckets, wanted, time_ranges):
         if io_count == 0:
             continue
         total_so_far += io_count
-        # last_pct_lt is the percentile corresponding to 
+        # last_pct_lt is the percentile corresponding to
         # all I/O requests up to, but not including, bucket b
         last_pct = pct
         pct = 100.0 * float(total_so_far) / total_ios
         # a single bucket could satisfy multiple pctiles
         # so this must be a while loop
-        # for 100-percentile (max latency) case, no bucket exceeds it 
+        # for 100-percentile (max latency) case, no bucket exceeds it
         # so we must stop there.
         while ((next_pctile == 100.0 and pct >= almost_100) or
                (next_pctile < 100.0  and pct > next_pctile)):
             # interpolate between min and max time for bucket time interval
-            # we keep the time_ranges access inside this loop, 
+            # we keep the time_ranges access inside this loop,
             # even though it could be above the loop,
-            # because in many cases we will not be even entering 
+            # because in many cases we will not be even entering
             # the loop so we optimize out these accesses
             range_max_time = time_ranges[b][1]
             range_min_time = time_ranges[b][0]
@@ -357,29 +357,32 @@ def get_pctiles(buckets, wanted, time_ranges):
 
 def compute_percentiles_from_logs():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--fio-version", dest="fio_version", 
-        default="3", choices=[2,3], type=int, 
+    parser.add_argument("--fio-version", dest="fio_version",
+        default="3", choices=[2,3], type=int,
         help="fio version (default=3)")
-    parser.add_argument("--bucket-groups", dest="bucket_groups", default="29", type=int, 
+    parser.add_argument("--bucket-groups", dest="bucket_groups", default="29", type=int,
         help="fio histogram bucket groups (default=29)")
-    parser.add_argument("--bucket-bits", dest="bucket_bits", 
-        default="6", type=int, 
+    parser.add_argument("--bucket-bits", dest="bucket_bits",
+        default="6", type=int,
         help="fio histogram buckets-per-group bits (default=6 means 64 buckets/group)")
-    parser.add_argument("--percentiles", dest="pctiles_wanted", 
+    parser.add_argument("--percentiles", dest="pctiles_wanted",
         default=[ 0., 50., 95., 99., 100.], type=float, nargs='+',
         help="fio histogram buckets-per-group bits (default=6 means 64 buckets/group)")
-    parser.add_argument("--time-quantum", dest="time_quantum", 
+    parser.add_argument("--time-quantum", dest="time_quantum",
         default="1", type=int,
         help="time quantum in seconds (default=1)")
-    parser.add_argument("--log-hist-msec", dest="log_hist_msec", 
+    parser.add_argument("--log-hist-msec", dest="log_hist_msec",
         type=int, default=None,
         help="log_hist_msec value in fio job file")
-    parser.add_argument("--output-unit", dest="output_unit", 
+    parser.add_argument("--output-unit", dest="output_unit",
         default="usec", type=str,
         help="Latency percentile output unit: msec|usec|nsec (default usec)")
-    parser.add_argument("--output-csv-file", 
+    parser.add_argument("--output-csv-file", dest="output_csv_file",
         help="write .csv records to this file")
-    parser.add_argument("file_list", nargs='+', 
+    parser.add_argument("--output-csv-file-header", dest="output_csv_file_header",
+        default=False, type=bool, help="Add header to the output-csv-file\
+        defaults to false, only works if --output-csv-file is used")
+    parser.add_argument("file_list", nargs='+',
         help='list of files, preceded by " -- " if necessary')
     args = parser.parse_args()
 
@@ -423,7 +426,7 @@ def compute_percentiles_from_logs():
     # parse the histogram logs
     # assumption: each bucket has a monotonically increasing time
     # assumption: time ranges do not overlap for a single thread's records
-    # (exception: if randrw workload, then there is a read and a write 
+    # (exception: if randrw workload, then there is a read and a write
     # record for the same time interval)
 
     test_start_time = 0
@@ -443,7 +446,7 @@ def compute_percentiles_from_logs():
         raise FioHistoLogExc('no time interval when all threads logs overlapped')
     if test_start_time > 0:
         print('all threads running as of unix epoch time %d = %s' % (
-               test_start_time/float(msec_per_sec), 
+               test_start_time/float(msec_per_sec),
                time.ctime(test_start_time/1000.0)))
 
     (end_time, time_interval_count) = get_time_intervals(args.time_quantum, test_start_time, test_end_time)
@@ -451,9 +454,9 @@ def compute_percentiles_from_logs():
                                for j in range(0, time_interval_count) ]
 
     for logfn in hist_files.keys():
-        aligned_per_thread = align_histo_log(hist_files[logfn], 
-                                             args.time_quantum, 
-                                             buckets_per_interval, 
+        aligned_per_thread = align_histo_log(hist_files[logfn],
+                                             args.time_quantum,
+                                             buckets_per_interval,
                                              test_start_time,
                                              test_end_time)
         for t in range(0, time_interval_count):
@@ -464,7 +467,7 @@ def compute_percentiles_from_logs():
     # calculate percentiles across aggregate histogram for all threads
     # print CSV header just like fiologparser_hist does
 
-    header = 'msec-since-start, samples, '
+    header = 'msec-since-start, samples'
     for p in args.pctiles_wanted:
         if p == 0.:
             next_pctile_header = 'min'
@@ -474,16 +477,20 @@ def compute_percentiles_from_logs():
             next_pctile_header = 'median'
         else:
             next_pctile_header = '%3.1f' % p
-        header += '%s, ' % next_pctile_header
+        header += ', %s' % next_pctile_header
 
     print('time (millisec), percentiles in increasing order with values in ' + args.output_unit)
     print(header)
     csv_out = sys.stdout
     if args.output_csv_file != None:
         csv_out = open(args.output_csv_file, 'w')
+    if args.output_csv_file_header:
+        csv_out.write(header + '\n')
     for (t_msec, all_threads_histo_t) in all_threads_histograms:
+        if t_msec == 0:
+            continue
         samples = get_samples(all_threads_histo_t)
-        record = '%8d, %8d, ' % (t_msec, samples)
+        record = '%d, %d' % (t_msec, samples)
         pct = get_pctiles(all_threads_histo_t, args.pctiles_wanted, bucket_times)
         if not pct:
             for w in args.pctiles_wanted:
@@ -491,6 +498,7 @@ def compute_percentiles_from_logs():
         else:
             pct_keys = [ k for k in pct.keys() ]
             pct_values = [ str(pct[wanted]/time_divisor) for wanted in sorted(pct_keys) ]
+            record += ', '
             record += ', '.join(pct_values)
         csv_out.write(record + '\n')
     if args.output_csv_file != None:
@@ -640,7 +648,7 @@ if unittest2_imported:
         ranges = time_ranges(3, 2, fio_version=3)
         self.A(ranges == expected_ranges)
         ranges = time_ranges(3, 2, fio_version=2)
-        expected_ranges_v2 = [ [ 1000.0 * min_or_max for min_or_max in time_range ] 
+        expected_ranges_v2 = [ [ 1000.0 * min_or_max for min_or_max in time_range ]
                                for time_range in expected_ranges ]
         self.A(ranges == expected_ranges_v2)
         # see fio V3 stat.h for why 29 groups and 2^6 buckets/group
@@ -701,7 +709,7 @@ if unittest2_imported:
             return (x+y) < 0.0000001
         else:
             return (math.fabs(x-y)/x) < 0.00001
-                
+
     def is_close(self, buckets, buckets_expected):
         if len(buckets) != len(buckets_expected):
             return False
@@ -778,4 +786,3 @@ if __name__ == '__main__':
             raise Exception('you must install unittest2 module to run unit test')
     else:
         compute_percentiles_from_logs()
-
